@@ -3,8 +3,8 @@
 **Remote open.** Run a command on a remote SSH session and have the file pop open on your local Windows machine with its default app — no manual download, no double-click.
 
 ```
-remote (r5)                          local (Windows)
------------                          ---------------
+remote (Linux)                       local (Windows)
+--------------                       ---------------
 $ o report.csv                       ~/Downloads/ropen/  <-- watch folder
    |                                        |
    tsz -y report.csv  ──(trzsz/tssh)──▶  report.csv written
