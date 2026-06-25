@@ -1,0 +1,6 @@
+# This repo is source only — the watch folder lives at ~/Downloads/ropen.
+# Ignore any data/download artifacts that might get dropped in here.
+*.csv
+*.csv.*
+*.xlsx
+*.log

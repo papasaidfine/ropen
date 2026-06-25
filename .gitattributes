@@ -1,0 +1,4 @@
+# Keep platform-appropriate line endings regardless of who clones where.
+*.ps1 text eol=crlf
+*.sh  text eol=lf
+*.md  text eol=lf
