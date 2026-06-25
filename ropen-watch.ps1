@@ -15,18 +15,19 @@ function Write-Log {
 }
 
 # Remove stale signal files left by a previously crashed watcher
-Get-ChildItem $WatchDir -Filter "*.sig" -File -ErrorAction SilentlyContinue |
+Get-ChildItem $WatchDir -Filter "ropen-*.sig" -File -ErrorAction SilentlyContinue |
     Remove-Item -Force -ErrorAction SilentlyContinue
 
 Write-Log "Watching $WatchDir  (log: $logFile)"
 
-# Only watch for *.sig completion signals — never touch data files mid-write.
-# o() on the remote sends the signal only after tsz has returned, so all data
-# files are guaranteed fully closed before the signal arrives.
+# Only watch for ropen-*.sig completion signals — never touch data files
+# mid-write. The signal is the last file in o()'s single tsz call, so by the
+# time it arrives every data file is fully written. The ropen- prefix keeps us
+# from mistaking a user's own *.sig data file for a completion signal.
 $queue = [System.Collections.Concurrent.ConcurrentQueue[string]]::new()
 
 $watcher = New-Object System.IO.FileSystemWatcher $WatchDir
-$watcher.Filter = "*.sig"
+$watcher.Filter = "ropen-*.sig"
 $watcher.NotifyFilter = [System.IO.NotifyFilters]::FileName -bor [System.IO.NotifyFilters]::LastWrite
 $watcher.IncludeSubdirectories = $false
 $watcher.EnableRaisingEvents = $true

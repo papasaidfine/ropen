@@ -32,7 +32,7 @@ Events and errors are logged to `%TEMP%\ropen.log`.
 
 ### Local (Windows)
 
-1. Install trzsz's `tssh` and make sure it's on `PATH`. The Go build ([trzsz-go](https://github.com/trzsz/trzsz-go)) ships a standalone Windows binary — grab the `trzsz_windows_*.zip` from its releases and put `tssh.exe` on `PATH`.
+1. Install `tssh` (the trzsz SSH client) and make sure it's on `PATH`. `tssh` is a **separate project** from trzsz-go — it ships from [trzsz-ssh](https://github.com/trzsz/trzsz-ssh), not in the `trzsz_windows_*.zip` (which only contains `trz`/`tsz`/`trzsz`). On Windows install it with `scoop install tssh`, or download `tssh.exe` from the [trzsz-ssh releases](https://github.com/trzsz/trzsz-ssh/releases) and put it on `PATH`.
 2. Point trzsz's download location at the watch folder so received files land there. In `~/.tssh.conf`:
    ```
    DefaultDownloadPath = C:\Users\<you>\Downloads\ropen

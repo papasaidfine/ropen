@@ -12,10 +12,13 @@
 # (name.csv -> name.csv.0), which destroys the extension so Windows can't pick a
 # default app to open it.
 #
-# After the data transfer completes, o() sends a tiny *.sig signal file listing
-# the transferred basenames. The watcher only reacts to *.sig arrivals, so it
-# never touches a data file mid-write — by the time the signal lands, tsz has
-# already returned and all data files are fully closed on the local side.
+# o() sends the data files and a tiny ropen-*.sig signal listing their basenames
+# in a SINGLE tsz call, with the signal as the last argument. trzsz transfers
+# files serially in argument order, so the signal only lands after every data
+# file is fully written locally. The watcher reacts to ropen-*.sig arrivals
+# only, so it never touches a data file mid-write. Sending everything in one
+# call (rather than a separate signal transfer) also removes the window where
+# the data could arrive but an independent signal send fails on its own.
 
 o() {
   if [ $# -eq 0 ]; then
@@ -33,11 +36,18 @@ o() {
     fi
   done
 
-  tsz -y "$@" || return 1
-
-  local sig
+  # Build the completion signal first, then send data files + signal in one tsz
+  # call (signal last). See the header comment for why this is a single call.
+  local sig rc
   sig=$(mktemp /tmp/ropen-XXXXXX.sig) || return 1
   for f in "$@"; do printf '%s\n' "$(basename -- "$f")"; done > "$sig"
-  tsz -y "$sig"
+
+  tsz -y "$@" "$sig"
+  rc=$?
   rm -f "$sig"
+
+  if [ "$rc" -ne 0 ]; then
+    echo "o: transfer failed (tsz exit $rc); local side will not auto-open" >&2
+    return "$rc"
+  fi
 }
