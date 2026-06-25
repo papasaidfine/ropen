@@ -21,9 +21,9 @@ $ o report.csv                       ~/Downloads/ropen/  <-- watch folder
 Two halves talk over a [trzsz](https://trzsz.github.io/) (`tssh`) session:
 
 - **Remote** — the `o()` shell function ([`remote/o.sh`](remote/o.sh)) calls `tsz -y <file>`, which streams the file down through the SSH session.
-- **Local** — the `tssh` client writes the received file into the watch folder (`%USERPROFILE%\Downloads\ropen`). [`ropen-watch.ps1`](ropen-watch.ps1) polls that folder every 500 ms and `Start-Process`-opens anything new, so Windows launches it with the default associated program.
+- **Local** — the `tssh` client writes the received file into the watch folder (`%USERPROFILE%\Downloads\ropen`). [`ropen-watch.ps1`](ropen-watch.ps1) uses `FileSystemWatcher` (event-driven, not polling) and `Start-Process`-opens anything new, so Windows launches it with the default associated program.
 
-The watcher dedups on `path | LastWriteTimeUtc | Length`, and skips files that are still being written (it waits for an exclusive read lock first).
+The watcher dedups on `path | LastWriteTimeUtc | Length`, and skips files that are still being written (it waits for an exclusive read lock first). Events and errors are logged to `%TEMP%\ropen.log`.
 
 ## Setup
 
@@ -38,7 +38,15 @@ The watcher dedups on `path | LastWriteTimeUtc | Length`, and skips files that a
    ```powershell
    pwsh -File ropen-watch.ps1
    ```
+   To use a custom folder, pass `-WatchDir` or set `$env:ROPEN_DIR` before launching:
+   ```powershell
+   pwsh -File ropen-watch.ps1 -WatchDir D:\ropen
+   # or
+   $env:ROPEN_DIR = "D:\ropen"; pwsh -File ropen-watch.ps1
+   ```
    To run it automatically at login, drop a shortcut to that command into `shell:startup`, or register a Scheduled Task triggered "At log on".
+
+   Logs are written to `%TEMP%\ropen.log`.
 
 ### Remote
 
@@ -58,7 +66,8 @@ The watcher dedups on `path | LastWriteTimeUtc | Length`, and skips files that a
 Then connect with `tssh`, and:
 
 ```sh
-o report.csv
+o report.csv                  # single file
+o report.csv summary.xlsx     # multiple files
 ```
 
 ## The `-y` gotcha

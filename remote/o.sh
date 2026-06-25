@@ -3,9 +3,9 @@
 #     source ~/path/to/o.sh
 # or just paste the function below.
 #
-# Usage: o <file>
-# Sends <file> down to the local machine via trzsz (tsz). The local tssh client
-# drops it into the ropen watch folder, where ropen-watch.ps1 auto-opens it.
+# Usage: o <file> [file...]
+# Sends files down to the local machine via trzsz (tsz). The local tssh client
+# drops them into the ropen watch folder, where ropen-watch.ps1 auto-opens them.
 #
 # The -y (--overwrite) flag is important: without it, trzsz never overwrites and
 # instead appends a counter to the *whole* filename on a name collision
@@ -14,8 +14,18 @@
 
 o() {
   if [ $# -eq 0 ]; then
-    echo "usage: o <file>"
+    echo "usage: o <file> [file...]"
     return 1
   fi
-  tsz -y "$1"
+  if ! command -v tsz >/dev/null 2>&1; then
+    echo "o: tsz not found; install trzsz-go: https://github.com/trzsz/trzsz-go" >&2
+    return 1
+  fi
+  for f in "$@"; do
+    if [ ! -e "$f" ]; then
+      echo "o: not found: $f" >&2
+      return 1
+    fi
+  done
+  tsz -y "$@"
 }
