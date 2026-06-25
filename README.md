@@ -29,7 +29,7 @@ The watcher dedups on `path | LastWriteTimeUtc | Length`, and skips files that a
 
 ### Local (Windows)
 
-1. Install trzsz `tssh` and make sure it's on `PATH`.
+1. Install trzsz's `tssh` and make sure it's on `PATH`. The Go build ([trzsz-go](https://github.com/trzsz/trzsz-go)) ships a standalone Windows binary — grab the `trzsz_windows_*.zip` from its releases and put `tssh.exe` on `PATH`.
 2. Point trzsz's download location at the watch folder so received files land there. In `~/.tssh.conf`:
    ```
    DefaultDownloadPath = C:\Users\<you>\Downloads\ropen
@@ -42,11 +42,18 @@ The watcher dedups on `path | LastWriteTimeUtc | Length`, and skips files that a
 
 ### Remote
 
-Add the open command to your shell rc (e.g. `~/.bashrc`):
-
-```sh
-source ~/path/to/o.sh     # or paste the o() function directly
-```
+1. Install trzsz so the `tsz` command is available. Use the Go build ([trzsz-go](https://github.com/trzsz/trzsz-go)) — it ships standalone binaries with no runtime deps. Grab the release for the remote's OS/arch, then put `tsz` (and `trz`) on `PATH`:
+   ```sh
+   # example: Linux x86_64
+   curl -sSL -o trzsz.tar.gz https://github.com/trzsz/trzsz-go/releases/latest/download/trzsz_linux_x86_64.tar.gz
+   tar xzf trzsz.tar.gz
+   sudo install trzsz_*/tsz trzsz_*/trz /usr/local/bin/
+   ```
+   (Or `go install github.com/trzsz/trzsz-go/cmd/...@latest`, or your package manager.)
+2. Add the open command to your shell rc (e.g. `~/.bashrc`):
+   ```sh
+   source ~/path/to/o.sh     # or paste the o() function directly
+   ```
 
 Then connect with `tssh`, and:
 
