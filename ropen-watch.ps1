@@ -14,21 +14,20 @@ function Write-Log {
     Add-Content -Path $logFile -Value $line -ErrorAction SilentlyContinue
 }
 
-$opened = @{}
-
-# 启动基线：把已存在的文件标记为"已见过"，避免启动时把整个文件夹的存量文件全打开
-Get-ChildItem $WatchDir -File -ErrorAction SilentlyContinue | ForEach-Object {
-    $key = "$($_.FullName)|$($_.LastWriteTimeUtc.Ticks)|$($_.Length)"
-    $opened[$key] = $true
-}
+# Remove stale signal files left by a previously crashed watcher
+Get-ChildItem $WatchDir -Filter "*.sig" -File -ErrorAction SilentlyContinue |
+    Remove-Item -Force -ErrorAction SilentlyContinue
 
 Write-Log "Watching $WatchDir  (log: $logFile)"
 
-# 事件驱动：用 FileSystemWatcher + 线程安全队列替代定时轮询
+# Only watch for *.sig completion signals — never touch data files mid-write.
+# o() on the remote sends the signal only after tsz has returned, so all data
+# files are guaranteed fully closed before the signal arrives.
 $queue = [System.Collections.Concurrent.ConcurrentQueue[string]]::new()
 
 $watcher = New-Object System.IO.FileSystemWatcher $WatchDir
-$watcher.NotifyFilter = [System.IO.NotifyFilters]::FileName -bor [System.IO.NotifyFilters]::LastWrite -bor [System.IO.NotifyFilters]::Size
+$watcher.Filter = "*.sig"
+$watcher.NotifyFilter = [System.IO.NotifyFilters]::FileName -bor [System.IO.NotifyFilters]::LastWrite
 $watcher.IncludeSubdirectories = $false
 $watcher.EnableRaisingEvents = $true
 
@@ -36,28 +35,42 @@ $action = { $Event.MessageData.Enqueue($Event.SourceEventArgs.FullPath) }
 Register-ObjectEvent $watcher Created -Action $action -MessageData $queue | Out-Null
 Register-ObjectEvent $watcher Changed -Action $action -MessageData $queue | Out-Null
 
+function Wait-Readable {
+    param([string]$Path)
+    for ($i = 0; $i -lt 20; $i++) {
+        try {
+            $s = [System.IO.File]::Open($Path, 'Open', 'Read', 'None')
+            $s.Close()
+            return $true
+        } catch {
+            Start-Sleep -Milliseconds 100
+        }
+    }
+    return $false
+}
+
 try {
     while ($true) {
-        $path = $null
-        while ($queue.TryDequeue([ref]$path)) {
-            if (-not (Test-Path $path -PathType Leaf)) { continue }
+        $sigPath = $null
+        while ($queue.TryDequeue([ref]$sigPath)) {
+            if (-not (Test-Path $sigPath -PathType Leaf)) { continue }
 
-            $file = Get-Item $path -ErrorAction SilentlyContinue
-            if (-not $file) { continue }
+            if (-not (Wait-Readable $sigPath)) {
+                Write-Log "Timed out reading signal: $sigPath" "WARN"
+                continue
+            }
 
-            $key = "$path|$($file.LastWriteTimeUtc.Ticks)|$($file.Length)"
-            if ($opened.ContainsKey($key)) { continue }
+            $names = Get-Content $sigPath -ErrorAction SilentlyContinue
+            Remove-Item $sigPath -Force -ErrorAction SilentlyContinue
 
-            try {
-                # 等文件写完（独占读锁）
-                $stream = [System.IO.File]::Open($path, 'Open', 'Read', 'None')
-                $stream.Close()
-                $opened[$key] = $true
-                Start-Process $path
-                Write-Log "Opened $path"
-            } catch {
-                # 文件还在写，下一个 Changed 事件时自动重试
-                Write-Log "Still writing: $path" "WARN"
+            foreach ($name in $names) {
+                $target = Join-Path $WatchDir $name
+                if (Test-Path $target -PathType Leaf) {
+                    Start-Process $target
+                    Write-Log "Opened $target"
+                } else {
+                    Write-Log "File not found after signal: $target" "WARN"
+                }
             }
         }
         Start-Sleep -Milliseconds 50

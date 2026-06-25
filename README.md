@@ -3,17 +3,20 @@
 **Remote open.** Run a command on a remote SSH session and have the file pop open on your local Windows machine with its default app — no manual download, no double-click.
 
 ```
-remote (Linux)                       local (Windows)
---------------                       ---------------
-$ o report.csv                       ~/Downloads/ropen/  <-- watch folder
-   |                                        |
-   tsz -y report.csv  ──(trzsz/tssh)──▶  report.csv written
-                                            |
-                                      ropen-watch.ps1 sees it
-                                            |
-                                      Start-Process report.csv
-                                            |
-                                      opens in default app (Excel, etc.)
+remote (Linux)                         local (Windows)
+--------------                         ---------------
+$ o report.csv                         ~/Downloads/ropen/  <-- watch folder
+   │
+   ├─ tsz -y report.csv ──(trzsz/tssh)──▶  report.csv  (fully written & closed)
+   │
+   └─ tsz -y ropen-*.sig ─(trzsz/tssh)──▶  ropen-*.sig  ← watcher triggers here
+                                                │
+                                          reads filenames from signal
+                                          deletes signal file
+                                                │
+                                          Start-Process report.csv
+                                                │
+                                          opens in default app (Excel, etc.)
 ```
 
 ## How it works
@@ -21,9 +24,9 @@ $ o report.csv                       ~/Downloads/ropen/  <-- watch folder
 Two halves talk over a [trzsz](https://trzsz.github.io/) (`tssh`) session:
 
 - **Remote** — the `o()` shell function ([`remote/o.sh`](remote/o.sh)) calls `tsz -y <file>`, which streams the file down through the SSH session.
-- **Local** — the `tssh` client writes the received file into the watch folder (`%USERPROFILE%\Downloads\ropen`). [`ropen-watch.ps1`](ropen-watch.ps1) uses `FileSystemWatcher` (event-driven, not polling) and `Start-Process`-opens anything new, so Windows launches it with the default associated program.
+- **Local** — the `tssh` client writes the received files and a tiny `*.sig` signal into the watch folder. [`ropen-watch.ps1`](ropen-watch.ps1) uses `FileSystemWatcher` and only reacts to `*.sig` arrivals. Because `o()` sends the signal only after `tsz` has returned, all data files are guaranteed fully closed by the time the signal lands — no polling, no file-lock guessing.
 
-The watcher dedups on `path | LastWriteTimeUtc | Length`, and skips files that are still being written (it waits for an exclusive read lock first). Events and errors are logged to `%TEMP%\ropen.log`.
+Events and errors are logged to `%TEMP%\ropen.log`.
 
 ## Setup
 

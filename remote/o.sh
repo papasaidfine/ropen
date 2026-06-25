@@ -11,6 +11,11 @@
 # instead appends a counter to the *whole* filename on a name collision
 # (name.csv -> name.csv.0), which destroys the extension so Windows can't pick a
 # default app to open it.
+#
+# After the data transfer completes, o() sends a tiny *.sig signal file listing
+# the transferred basenames. The watcher only reacts to *.sig arrivals, so it
+# never touches a data file mid-write — by the time the signal lands, tsz has
+# already returned and all data files are fully closed on the local side.
 
 o() {
   if [ $# -eq 0 ]; then
@@ -27,5 +32,12 @@ o() {
       return 1
     fi
   done
-  tsz -y "$@"
+
+  tsz -y "$@" || return 1
+
+  local sig
+  sig=$(mktemp /tmp/ropen-XXXXXX.sig) || return 1
+  for f in "$@"; do printf '%s\n' "$(basename -- "$f")"; done > "$sig"
+  tsz -y "$sig"
+  rm -f "$sig"
 }
